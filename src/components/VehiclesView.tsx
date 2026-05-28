@@ -41,6 +41,7 @@ export default function VehiclesView({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [imageErrorRows, setImageErrorRows] = useState<Record<number, boolean>>({});
 
   // Calculate oil change remaining info
   const getOilStatus = (v: Vehicle) => {
@@ -433,18 +434,54 @@ export default function VehiclesView({
               {/* Photo Area with Upload Interface */}
               <div className="relative w-full h-32 bg-[#f4f6f0] rounded-2xl flex items-center justify-center overflow-hidden border border-[#d6dfce]/60 group">
                 {v.photoUrl ? (
-                  <>
-                    <img 
-                      src={resolveDriveImageUrl(v.photoUrl)} 
-                      alt={v.model}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover transition duration-300"
-                    />
-                    {/* Tiny visual badge */}
-                    <div className="absolute top-2 left-2 bg-[#516931] px-2 py-0.5 rounded-md text-[8px] font-bold text-white shadow-sm">
-                      GOOGLE DRIVE STORED
+                  imageErrorRows[v.rowNum] ? (
+                    <div className="flex flex-col items-center justify-center text-rose-800 bg-rose-50/70 w-full h-full p-2.5 text-center gap-1 select-none">
+                      <X className="w-4 h-4 text-rose-500" />
+                      <span className="text-[9.5px] font-black leading-tight">사진 로딩 불가 ⚠️</span>
+                      <span className="text-[8px] font-bold text-rose-600/90 leading-snug">
+                        드라이브 파일 공유 설정을 <br/>
+                        <span className="underline">"링크가 있는 모든 사용자"</span>로<br/>
+                        변경해주시면 표시됩니다.
+                      </span>
                     </div>
-                  </>
+                  ) : (
+                    <>
+                      <img 
+                        src={resolveDriveImageUrl(v.photoUrl)} 
+                        alt={v.model}
+                        className="w-full h-full object-cover transition duration-300"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          // 1단계: 만약 thumbnail 형식이 실패했다면, docs.google.com/uc?export=view 형식으로 조율
+                          if (target.src.includes('thumbnail')) {
+                            const dMatch = v.photoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+                            const idMatch = v.photoUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                            const fileId = (dMatch && dMatch[1]) || (idMatch && idMatch[1]);
+                            if (fileId) {
+                              target.src = `https://docs.google.com/uc?export=view&id=${fileId}`;
+                              return;
+                            }
+                          }
+                          // 2단계: 그것도 실패했다면 lh3.googleusercontent.com 형식으로 조율
+                          if (target.src.includes('docs.google.com')) {
+                            const dMatch = v.photoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+                            const idMatch = v.photoUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                            const fileId = (dMatch && dMatch[1]) || (idMatch && idMatch[1]);
+                            if (fileId) {
+                              target.src = `https://lh3.googleusercontent.com/d/${fileId}`;
+                              return;
+                            }
+                          }
+                          // 3단계: 모두 다 작동하지 않는 비공개 파일인 경우, 에러 박스 UI 렌더링 전환
+                          setImageErrorRows(prev => ({ ...prev, [v.rowNum]: true }));
+                        }}
+                      />
+                      {/* Tiny visual badge */}
+                      <div className="absolute top-2 left-2 bg-[#516931] px-2 py-0.5 rounded-md text-[8px] font-bold text-white shadow-sm select-none">
+                        구글 드라이브 연동됨
+                      </div>
+                    </>
+                  )
                 ) : (
                   <div className="flex flex-col items-center justify-center text-[#7b8f6c] gap-1.5 p-4">
                     <ImageIcon className="w-8 h-8 text-[#7b8f6c]/60" />

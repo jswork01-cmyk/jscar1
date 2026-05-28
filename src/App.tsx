@@ -543,7 +543,7 @@ export default function App() {
   };
 
   // User CRUD Synchronization Handlers
-  const handleAddSheetUser = async (user: { username: string; accessKey: string; role: string }) => {
+  const handleAddSheetUser = async (user: { username: string; accessKey: string; role: string; email: string }) => {
     if (isDemoMode) {
       const newRowNum = sheetUsers.length > 0 ? Math.max(...sheetUsers.map(u => u.rowNum || 0)) + 1 : 2;
       const newUsers = [...sheetUsers, { ...user, rowNum: newRowNum }];
@@ -560,7 +560,7 @@ export default function App() {
     await loadSpreadsheetData(spreadsheetId, token);
   };
 
-  const handleUpdateSheetUser = async (rowNum: number, user: { username: string; accessKey: string; role: string }) => {
+  const handleUpdateSheetUser = async (rowNum: number, user: { username: string; accessKey: string; role: string; email: string }) => {
     if (isDemoMode) {
       const newUsers = sheetUsers.map(u => u.rowNum === rowNum ? { ...u, ...user } : u);
       setSheetUsers(newUsers);

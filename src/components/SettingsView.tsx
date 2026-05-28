@@ -24,8 +24,8 @@ interface SettingsViewProps {
   onToggleNotifyInsurance: (val: boolean) => void;
   onToggleNotifyOil: (val: boolean) => void;
   sheetUsers: any[];
-  onAddSheetUser: (user: { username: string; accessKey: string; role: string }) => Promise<void>;
-  onUpdateSheetUser: (rowNum: number, user: { username: string; accessKey: string; role: string }) => Promise<void>;
+  onAddSheetUser: (user: { username: string; accessKey: string; role: string; email: string }) => Promise<void>;
+  onUpdateSheetUser: (rowNum: number, user: { username: string; accessKey: string; role: string; email: string }) => Promise<void>;
   onDeleteSheetUser: (rowNum: number) => Promise<void>;
   gasWebAppUrl: string | null;
   onConnectGasWebApp: (url: string) => Promise<void>;
@@ -68,11 +68,13 @@ export default function SettingsView({
   const [isAddingUser, setIsAddingUser] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newAccessKey, setNewAccessKey] = useState('');
+  const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState<'admin' | 'Staff'>('Staff');
   
   const [editingRowNum, setEditingRowNum] = useState<number | null>(null);
   const [editUsername, setEditUsername] = useState('');
   const [editAccessKey, setEditAccessKey] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editRole, setEditRole] = useState<'admin' | 'Staff'>('Staff');
   const [userCrudError, setUserCrudError] = useState<string | null>(null);
   const [isUserActionLoading, setIsUserActionLoading] = useState(false);
@@ -96,10 +98,12 @@ export default function SettingsView({
       await onAddSheetUser({
         username: newUsername.trim(),
         accessKey: newAccessKey.trim(),
-        role: newRole
+        role: newRole,
+        email: newEmail.trim() || `${newAccessKey.trim()}@jeongsim.or.kr`
       });
       setNewUsername('');
       setNewAccessKey('');
+      setNewEmail('');
       setNewRole('Staff');
       setIsAddingUser(false);
     } catch (e: any) {
@@ -113,6 +117,7 @@ export default function SettingsView({
     setEditingRowNum(user.rowNum);
     setEditUsername(user.username);
     setEditAccessKey(user.accessKey);
+    setEditEmail(user.email || '');
     setEditRole(user.role);
     setUserCrudError(null);
   };
@@ -136,7 +141,8 @@ export default function SettingsView({
       await onUpdateSheetUser(rowNum, {
         username: editUsername.trim(),
         accessKey: editAccessKey.trim(),
-        role: editRole
+        role: editRole,
+        email: editEmail.trim() || `${editAccessKey.trim()}@jeongsim.or.kr`
       });
       setEditingRowNum(null);
     } catch (e: any) {
@@ -358,6 +364,81 @@ export default function SettingsView({
             </div>
           )}
 
+          {/* Collapsible Apps Script Code Section */}
+          <div className="border border-dashed border-[#d6dfce]/80 rounded-2xl p-2.5 bg-[#f4f6f0]/30 select-none">
+            <details className="group focus:outline-none">
+              <summary className="text-[9px] sm:text-[10px] font-bold text-[#516931] cursor-pointer flex items-center justify-between">
+                <span>📬 [필독] 관리자 자동 예약알림 메일 Apps Script 소스코드 보기</span>
+                <span className="text-[8px] text-[#7b8f6c] group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="mt-2 flex flex-col gap-1.5 text-[9px] leading-relaxed text-stone-600 font-sans">
+                <p>
+                  배차신청 시 정심작업장의 <strong>최고 관리자(admin 권한) 이메일 주소(D열)</strong>로 메일이 즉시 수신되도록 하려면 스프레드시트의 <code>도구 &gt; Apps Script</code>의 <code>doGet(e)</code> 함수 내에 아래 코드를 추가/덮어쓰기 해주십시오.
+                </p>
+                <textarea
+                  readOnly
+                  value={`// [정심작업장 차량관리 웹 연동구조 확장 메일 발송 포함 doGet 구현체]
+function doGet(e) {
+  var action = e.parameter.action;
+  
+  if (action === "sendApprovalMail") {
+    var adminEmailsRaw = e.parameter.adminEmails || "";
+    var driverName = e.parameter.driverName || "";
+    var vehicleId = e.parameter.vehicleId || "";
+    var startDate = e.parameter.startDate || "";
+    var endDate = e.parameter.endDate || "";
+    var purpose = e.parameter.purpose || "";
+    var destination = e.parameter.destination || "";
+    
+    if (adminEmailsRaw) {
+      var emailList = adminEmailsRaw.split(",");
+      var subject = "[정심작업장 차량관리] " + driverName + " 복지사의 새로운 배차 예약 신청";
+      var body = "<h3>🚗 정심작업장 차량관리 배차 예약 알림</h3>" +
+                 "<p>차량사용자가 새로운 배차예약을 신청하였습니다. 관리자께서는 시스템에 접속하여 승인 여부를 결정해 주시기 바랍니다.</p>" +
+                 "<table border='1' cellpadding='8' style='border-collapse: collapse; border-color: #d6dfce; width: 100%; max-width: 500px;'>" +
+                 "  <tr style='background-color:#f4f6f0;'><th>예약 세부 구성</th><th>내용</th></tr>" +
+                 "  <tr><td><b>신청 및 예약자</b></td><td>" + driverName + "</td></tr>" +
+                 "  <tr><td><b>신청 차량</b></td><td>" + vehicleId + "</td></tr>" +
+                 "  <tr><td><b>목적 및 사유</b></td><td>" + purpose + "</td></tr>" +
+                 "  <tr><td><b>행선지 및 동승자</b></td><td>" + destination + "</td></tr>" +
+                 "  <tr><td><b>사용 예정 기간</b></td><td>" + startDate + " ~ " + endDate + "</td></tr>" +
+                 "</table>" +
+                 "<br/>" +
+                 "<p>✓ 최고관리자(Admin)께서는 아래의 정심작업장 차량관리시스템 웹 주소에 고유 패스코드로 로그인하신 후 즉각 <b>승인/반려/수정</b>을 진행하실 수 있습니다.</p>" +
+                 "<p><a href='https://jeongsim-car.web.app' style='background-color:#516931; color:white; padding: 10px 18px; text-decoration:none; border-radius:8px; font-weight:bold; display: inline-block;'>차량관리 대시보드 바로가기</a></p>";
+      
+      for (var i = 0; i < emailList.length; i++) {
+        var email = emailList[i].trim();
+        if (email) {
+          try {
+            MailApp.sendEmail({
+              to: email,
+              subject: subject,
+              htmlBody: body
+            });
+          } catch(err) {
+            Logger.log("Email dispatch failed: " + err.toString());
+          }
+        }
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Emails sent out to admin lists." }))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  // (여기에 기존 doGet 내의 action === "read", action === "addReservation" 등의 구문을 차례대로 연계해 실행하십시오)
+}`}
+                  className="w-full h-32 p-2 font-mono text-[8.5px] bg-[#fdfdfd] border border-stone-250 rounded-lg focus:outline-none select-all cursor-pointer"
+                  onClick={(e) => {
+                    const target = e.currentTarget;
+                    target.select();
+                  }}
+                />
+                <span className="text-[7.5px] text-stone-450 font-bold">💡 마우스 클릭 시 코드 전체가 선택되어 간편히 복사할 수 있습니다.</span>
+              </div>
+            </details>
+          </div>
+
           {successMsg && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-[#425932] font-semibold rounded-2xl flex items-center gap-1.5 select-none text-[10.5px]">
               <CheckCircle className="w-4 h-4 shrink-0 text-[#516931]" />
@@ -445,6 +526,17 @@ export default function SettingsView({
               </div>
 
               <div>
+                <label className="block text-[8px] font-bold text-[#7b8f6c] mb-0.5">이메일 주소 (email - 예약 승인용 알림 이메일)</label>
+                <input
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="예: admin@jeongsim.or.kr"
+                  className="w-full h-8 px-2 bg-white border border-[#d6dfce] rounded-lg text-[#1e2318] focus:outline-none font-sans"
+                />
+              </div>
+
+              <div>
                 <label className="block text-[8px] font-bold text-[#7b8f6c] mb-0.5">접속 권한 (role)</label>
                 <div className="grid grid-cols-2 gap-1.5 p-0.5 bg-white border border-[#d6dfce] rounded-lg">
                   <button
@@ -521,6 +613,17 @@ export default function SettingsView({
                           </div>
                         </div>
 
+                        <div>
+                          <label className="block text-[7.5px] font-bold text-stone-400">이메일 주소</label>
+                          <input
+                            type="email"
+                            value={editEmail}
+                            onChange={(e) => setEditEmail(e.target.value)}
+                            className="w-full h-7 px-1.5 border border-[#d6dfce] rounded-md text-[#192310] font-sans"
+                            placeholder="예: admin@jeongsim.or.kr"
+                          />
+                        </div>
+
                         <div className="flex items-center justify-between gap-2 mt-1">
                           <div className="flex gap-2 p-0.5 bg-stone-100 border rounded-md text-[8.5px] font-bold w-1/2">
                             <button
@@ -575,9 +678,16 @@ export default function SettingsView({
                                 {u.role?.toLowerCase() === 'admin' ? 'Admin' : 'DRIVER / STAFF'}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1 mt-0.5 text-stone-500">
-                              <Key className="w-3 h-3 shrink-0 text-stone-400" />
-                              <span className="font-mono text-[9px] font-bold bg-white text-slate-750 border px-1 rounded">접근 키: <span className="font-bold select-all tracking-wider text-emerald-900">{u.accessKey}</span></span>
+                            <div className="flex flex-col gap-1 mt-0.5 text-stone-500 font-sans">
+                              <div className="flex items-center gap-1 font-mono text-[9px]">
+                                <Key className="w-3 h-3 shrink-0 text-stone-400" />
+                                <span className="bg-white text-slate-755 border px-1 rounded">접근 키: <span className="font-bold select-all tracking-wider text-[#516931]">{u.accessKey}</span></span>
+                              </div>
+                              {u.email && (
+                                <div className="text-[8.5px] text-stone-500 font-bold truncate max-w-[200px]" title="이메일 주소">
+                                  📧 {u.email}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>

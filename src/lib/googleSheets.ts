@@ -63,6 +63,7 @@ export interface SheetUser {
   username: string;
   accessKey: string;
   role: string;
+  email: string;
   rowNum: number;
 }
 
@@ -89,13 +90,13 @@ const DEFAULT_REPAIRS: RepairLog[] = [
 ];
 
 const DEFAULT_USERS: SheetUser[] = [
-  { username: '관리자', accessKey: 'admin', role: 'admin', rowNum: 2 },
-  { username: '권기은', accessKey: 'kieun', role: 'admin', rowNum: 3 },
-  { username: '김대영', accessKey: 'daey', role: 'admin', rowNum: 4 },
-  { username: '이미현', accessKey: 'hyun', role: 'admin', rowNum: 5 },
-  { username: '천범수', accessKey: '1234', role: 'Staff', rowNum: 6 },
-  { username: '김경운', accessKey: '3456', role: 'Staff', rowNum: 7 },
-  { username: '문순라', accessKey: '4567', role: 'Staff', rowNum: 8 },
+  { username: '관리자', accessKey: 'admin', role: 'admin', email: 'jswork01@jeongsim.or.kr', rowNum: 2 },
+  { username: '권기은', accessKey: 'kieun', role: 'admin', email: 'westrc1@jeongsim.or.kr', rowNum: 3 },
+  { username: '김대영', accessKey: 'daey', role: 'admin', email: 'jswork01@jeongsim.or.kr', rowNum: 4 },
+  { username: '이미현', accessKey: 'hyun', role: 'admin', email: 'jswork01@jeongsim.or.kr', rowNum: 5 },
+  { username: '천범수', accessKey: '1234', role: 'Staff', email: 'beomsu@jeongsim.or.kr', rowNum: 6 },
+  { username: '김경운', accessKey: '3456', role: 'Staff', email: 'kyeongun@jeongsim.or.kr', rowNum: 7 },
+  { username: '문순라', accessKey: '4567', role: 'Staff', email: 'sunra@jeongsim.or.kr', rowNum: 8 },
 ];
 
 export const initializeLocalData = () => {
@@ -127,6 +128,19 @@ export const getGlobalGasUrl = (): string | null => {
 };
 
 /**
+ * 구글 드라이브 파일 ID를 정규식으로 안전하게 추출합니다.
+ */
+export const extractDriveFileId = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  const trimmed = url.trim();
+  const dMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (dMatch && dMatch[1]) return dMatch[1];
+  const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch && idMatch[1]) return idMatch[1];
+  return null;
+};
+
+/**
  * 구글 드라이브 공유 주소를 <img> 태그에서 렌더링 가능한 웹 주소(LH3 CDN 또는 직접 다운로드 캐시)로 자동 변환하여 리턴합니다.
  */
 export const resolveDriveImageUrl = (url: string | null | undefined): string => {
@@ -137,23 +151,10 @@ export const resolveDriveImageUrl = (url: string | null | undefined): string => 
   // base64 이미지 데이터는 그대로 사용
   if (trimmed.startsWith('data:image/')) return trimmed;
 
-  // 구글 드라이브 도메인 포함 여부 확인
-  if (
-    trimmed.includes('drive.google.com') ||
-    trimmed.includes('docs.google.com') ||
-    trimmed.includes('googleusercontent.com')
-  ) {
-    // 1. /file/d/FILE_ID/... 포맷 파싱
-    const dMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (dMatch && dMatch[1]) {
-      return `https://lh3.googleusercontent.com/d/${dMatch[1]}`;
-    }
-
-    // 2. id=FILE_ID 쿼리 파라미터 포맷 파싱
-    const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-    if (idMatch && idMatch[1]) {
-      return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
-    }
+  const fileId = extractDriveFileId(trimmed);
+  if (fileId) {
+    // drive.google.com/thumbnail?id=FILE_ID&sz=w1000 은 가장 안정성 있는 썸네일 포맷입니다.
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
   }
 
   return trimmed;
@@ -275,6 +276,7 @@ function parseUsers(rows: any[][]): SheetUser[] {
       username: safeString(row[0]),
       accessKey: safeString(row[1]),
       role: safeString(row[2], 'Staff'),
+      email: safeString(row[3]) || `${safeString(row[1])}@jeongsim.or.kr`,
       rowNum
     };
   }).filter(u => u.username.trim() !== '');
@@ -405,6 +407,30 @@ export const addReservationRow = async (
     try {
       const fetchUrl = `${gasUrl}${gasUrl.includes('?') ? '&' : '?'}action=addReservation&data=${encodeURIComponent(JSON.stringify(newReservation))}`;
       await fetch(fetchUrl, { method: 'GET' });
+
+      // Automatically trigger approval email to admins
+      try {
+        const localUsersRaw = localStorage.getItem('welfare_local_users');
+        const localUsers = localUsersRaw ? JSON.parse(localUsersRaw) : [];
+        const adminEmails = localUsers
+          .filter((u: any) => u.role?.toLowerCase() === 'admin' && u.email?.trim())
+          .map((u: any) => u.email.trim());
+
+        if (adminEmails.length > 0) {
+          const emailFetchUrl = `${gasUrl}${gasUrl.includes('?') ? '&' : '?'}action=sendApprovalMail` +
+            `&adminEmails=${encodeURIComponent(adminEmails.join(','))}` +
+            `&driverName=${encodeURIComponent(newReservation.driverName)}` +
+            `&vehicleId=${encodeURIComponent(newReservation.vehicleId)}` +
+            `&startDate=${encodeURIComponent(newReservation.startDate)}` +
+            `&endDate=${encodeURIComponent(newReservation.endDate)}` +
+            `&purpose=${encodeURIComponent(newReservation.purpose)}` +
+            `&destination=${encodeURIComponent(newReservation.destination)}`;
+          
+          await fetch(emailFetchUrl, { method: 'GET' });
+        }
+      } catch (emailErr) {
+        console.warn('Failed to send admin notification email:', emailErr);
+      }
     } catch (err) {
       console.warn('Failed to post addReservation action to web app sync:', err);
     }

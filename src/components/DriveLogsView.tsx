@@ -61,6 +61,7 @@ export default function DriveLogsView({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [logImageErrors, setLogImageErrors] = useState<Record<string, boolean>>({});
 
   const [selectedReservationId, setSelectedReservationId] = useState('');
 
@@ -693,7 +694,7 @@ export default function DriveLogsView({
                 </label>
                 {photoUrl && (
                   <div className="w-16 h-16 rounded-xl overflow-hidden border border-[#d6dfce] bg-[#f4f6f0]">
-                    <img src={resolveDriveImageUrl(photoUrl)} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Preview" />
+                    <img src={resolveDriveImageUrl(photoUrl)} className="w-full h-full object-cover" alt="Preview" />
                   </div>
                 )}
               </div>
@@ -853,8 +854,45 @@ export default function DriveLogsView({
 
                   {/* Photo attachments */}
                   {log.photoUrl && (
-                    <div className="relative w-full h-36 rounded-2xl overflow-hidden border border-[#d6dfce]/85 bg-[#f4f6f0] mt-2 select-none shadow-sm">
-                      <img src={resolveDriveImageUrl(log.photoUrl)} referrerPolicy="no-referrer" alt="운행사진" className="w-full h-full object-cover" />
+                    <div className="relative w-full h-36 rounded-2xl overflow-hidden border border-[#d6dfce]/85 bg-[#f4f6f0] mt-2 select-none shadow-sm flex items-center justify-center">
+                      {logImageErrors[log.id] ? (
+                        <div className="flex flex-col items-center justify-center text-rose-800 bg-rose-50/70 w-full h-full p-2 text-center gap-0.5 select-none">
+                          <X className="w-4 h-4 text-rose-500" />
+                          <span className="text-[9.5px] font-black leading-tight">사진 로딩 불가 ⚠️</span>
+                          <span className="text-[8px] font-bold text-rose-600/95 leading-normal">
+                            드라이브 공유 권한을 <br/>
+                            "링크가 있는 모든 사용자"로 변경 후 새로고침 해주세요.
+                          </span>
+                        </div>
+                      ) : (
+                        <img 
+                          src={resolveDriveImageUrl(log.photoUrl)} 
+                          alt="운행사진" 
+                          className="w-full h-full object-cover" 
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (target.src.includes('thumbnail')) {
+                              const dMatch = log.photoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+                              const idMatch = log.photoUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                              const fileId = (dMatch && dMatch[1]) || (idMatch && idMatch[1]);
+                              if (fileId) {
+                                target.src = `https://docs.google.com/uc?export=view&id=${fileId}`;
+                                return;
+                              }
+                            }
+                            if (target.src.includes('docs.google.com')) {
+                              const dMatch = log.photoUrl.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+                              const idMatch = log.photoUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                              const fileId = (dMatch && dMatch[1]) || (idMatch && idMatch[1]);
+                              if (fileId) {
+                                target.src = `https://lh3.googleusercontent.com/d/${fileId}`;
+                                return;
+                              }
+                            }
+                            setLogImageErrors(prev => ({ ...prev, [log.id]: true }));
+                          }}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
