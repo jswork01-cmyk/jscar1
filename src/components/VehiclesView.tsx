@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Vehicle, uploadFileToDrive } from '../lib/googleSheets';
+import { Vehicle, uploadFileToDrive, resolveDriveImageUrl } from '../lib/googleSheets';
 import { formatKSTDate } from '../lib/dateUtils';
 import { 
   Plus, Upload, Sparkles, CheckCircle2, 
@@ -435,7 +435,7 @@ export default function VehiclesView({
                 {v.photoUrl ? (
                   <>
                     <img 
-                      src={v.photoUrl} 
+                      src={resolveDriveImageUrl(v.photoUrl)} 
                       alt={v.model}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover transition duration-300"

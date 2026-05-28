@@ -126,6 +126,39 @@ export const getGlobalGasUrl = (): string | null => {
   return 'https://script.google.com/macros/s/AKfycbykWL2mhTG9nh15qmTN8AaazpHrOpCPXzaszcc6gZxi27hkavVqYl76GD_yy0ip6fTcOw/exec';
 };
 
+/**
+ * 구글 드라이브 공유 주소를 <img> 태그에서 렌더링 가능한 웹 주소(LH3 CDN 또는 직접 다운로드 캐시)로 자동 변환하여 리턴합니다.
+ */
+export const resolveDriveImageUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  // base64 이미지 데이터는 그대로 사용
+  if (trimmed.startsWith('data:image/')) return trimmed;
+
+  // 구글 드라이브 도메인 포함 여부 확인
+  if (
+    trimmed.includes('drive.google.com') ||
+    trimmed.includes('docs.google.com') ||
+    trimmed.includes('googleusercontent.com')
+  ) {
+    // 1. /file/d/FILE_ID/... 포맷 파싱
+    const dMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (dMatch && dMatch[1]) {
+      return `https://lh3.googleusercontent.com/d/${dMatch[1]}`;
+    }
+
+    // 2. id=FILE_ID 쿼리 파라미터 포맷 파싱
+    const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (idMatch && idMatch[1]) {
+      return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
+    }
+  }
+
+  return trimmed;
+};
+
 export const getSpreadsheetMetadata = async (spreadsheetId: string, accessToken: string) => {
   return true;
 };

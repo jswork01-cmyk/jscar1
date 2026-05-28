@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Vehicle, DriveLog, Reservation, RepairLog, uploadFileToDrive } from '../lib/googleSheets';
+import { Vehicle, DriveLog, Reservation, RepairLog, uploadFileToDrive, resolveDriveImageUrl } from '../lib/googleSheets';
 import { formatKSTDate, formatKSTDateTime, formatKSTTimeOnly } from '../lib/dateUtils';
 import { 
   Gauge, Plus, Compass, CheckCircle2, 
@@ -693,7 +693,7 @@ export default function DriveLogsView({
                 </label>
                 {photoUrl && (
                   <div className="w-16 h-16 rounded-xl overflow-hidden border border-[#d6dfce] bg-[#f4f6f0]">
-                    <img src={photoUrl} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Preview" />
+                    <img src={resolveDriveImageUrl(photoUrl)} referrerPolicy="no-referrer" className="w-full h-full object-cover" alt="Preview" />
                   </div>
                 )}
               </div>
@@ -854,7 +854,7 @@ export default function DriveLogsView({
                   {/* Photo attachments */}
                   {log.photoUrl && (
                     <div className="relative w-full h-36 rounded-2xl overflow-hidden border border-[#d6dfce]/85 bg-[#f4f6f0] mt-2 select-none shadow-sm">
-                      <img src={log.photoUrl} referrerPolicy="no-referrer" alt="운행사진" className="w-full h-full object-cover" />
+                      <img src={resolveDriveImageUrl(log.photoUrl)} referrerPolicy="no-referrer" alt="운행사진" className="w-full h-full object-cover" />
                     </div>
                   )}
                 </div>
