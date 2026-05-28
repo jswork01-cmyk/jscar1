@@ -1,0 +1,8 @@
+{
+  "name": "Remix: 정심작업장 차량관리",
+  "description": "구글 스프레드시트와 실시간 연동되는 정심작업장 차량예약, 운행일지, 정비이력, 오일교환주기 및 보험 갱신 관리 시스템",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
