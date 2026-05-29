@@ -66,6 +66,7 @@ function doGet(e) {
       var endDate = e.parameter.endDate || "";
       var purpose = e.parameter.purpose || "";
       var destination = e.parameter.destination || "";
+      var systemUrl = e.parameter.systemUrl || "https://ais-pre-utig7edkk25tu2cg44ccvw-10224509173.asia-northeast1.run.app";
 
       if (adminEmailsRaw) {
         var emailList = adminEmailsRaw.split(",");
@@ -82,7 +83,7 @@ function doGet(e) {
                    "</table>" +
                    "<br/>" +
                    "<p>✓ 최고관리자(Admin)께서는 웹브라우저에서 정심작업장 차량관리시스템 웹 주소에 접근 및 로그인 후, 즉시 <b>승인 / 반려 / 수정</b>을 처리하실 수 있습니다.</p>" +
-                   "<p><a href='https://ais-pre-utig7edkk25tu2cg44ccvw-10224509173.asia-northeast1.run.app' style='background-color:#516931; color:white; padding: 10px 18px; text-decoration:none; border-radius:8px; font-weight:bold; display: inline-block;'>차량관리 시스템 바로가기</a></p>";
+                   "<p><a href='" + systemUrl + "' style='background-color:#516931; color:white; padding: 10px 18px; text-decoration:none; border-radius:8px; font-weight:bold; display: inline-block;'>차량관리 시스템 바로가기</a></p>";
 
         for (var i = 0; i < emailList.length; i++) {
           var email = emailList[i].trim();

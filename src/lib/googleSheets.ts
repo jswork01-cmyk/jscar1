@@ -417,6 +417,7 @@ export const addReservationRow = async (
           .map((u: any) => u.email.trim());
 
         if (adminEmails.length > 0) {
+          const systemUrl = typeof window !== 'undefined' ? window.location.origin : 'https://ais-pre-utig7edkk25tu2cg44ccvw-10224509173.asia-northeast1.run.app';
           const emailFetchUrl = `${gasUrl}${gasUrl.includes('?') ? '&' : '?'}action=sendApprovalMail` +
             `&adminEmails=${encodeURIComponent(adminEmails.join(','))}` +
             `&driverName=${encodeURIComponent(newReservation.driverName)}` +
@@ -424,7 +425,8 @@ export const addReservationRow = async (
             `&startDate=${encodeURIComponent(newReservation.startDate)}` +
             `&endDate=${encodeURIComponent(newReservation.endDate)}` +
             `&purpose=${encodeURIComponent(newReservation.purpose)}` +
-            `&destination=${encodeURIComponent(newReservation.destination)}`;
+            `&destination=${encodeURIComponent(newReservation.destination)}` +
+            `&systemUrl=${encodeURIComponent(systemUrl)}`;
           
           await fetch(emailFetchUrl, { method: 'GET' });
         }

@@ -368,76 +368,379 @@ export default function SettingsView({
           <div className="border border-dashed border-[#d6dfce]/80 rounded-2xl p-2.5 bg-[#f4f6f0]/30 select-none">
             <details className="group focus:outline-none">
               <summary className="text-[9px] sm:text-[10px] font-bold text-[#516931] cursor-pointer flex items-center justify-between">
-                <span>📬 [필독] 관리자 자동 예약알림 메일 Apps Script 소스코드 보기</span>
+                <span>📬 [필독] 관리자 자동 예약알림 메일 기능이 포함된 '통합 연동 Apps Script' 전체코드 보기</span>
                 <span className="text-[8px] text-[#7b8f6c] group-open:rotate-180 transition-transform">▼</span>
               </summary>
               <div className="mt-2 flex flex-col gap-1.5 text-[9px] leading-relaxed text-stone-600 font-sans">
                 <p>
-                  배차신청 시 정심작업장의 <strong>최고 관리자(admin 권한) 이메일 주소(D열)</strong>로 메일이 즉시 수신되도록 하려면 스프레드시트의 <code>도구 &gt; Apps Script</code>의 <code>doGet(e)</code> 함수 내에 아래 코드를 추가/덮어쓰기 해주십시오.
+                  이메일 자동 알림 기능 및 기존의 예약/기록 실시간 구글 시트 반영 기능이 모두 통합된 <strong>전체 소스코드</strong>입니다. 
+                  기존에 설정한 구글 스프레드시트 <code>확장 프로그램 &gt; Apps Script</code>의 편집기 내용을 이 코드로 <strong>완전히 덮어쓰기(전체 교체)</strong> 하십시오.
                 </p>
                 <textarea
                   readOnly
-                  value={`// [정심작업장 차량관리 웹 연동구조 확장 메일 발송 포함 doGet 구현체]
+                  value={`/**
+ * =========================================================================================
+ *             [정심작업장 차량관리시스템 전용 통합 Google Apps Script 배포 코드]
+ * =========================================================================================
+ * 이 코드는 기존의 배차 대기/승인/반려, 로그 등록, 수리 등록 및 사용자 동기화와 함께
+ * 배차 신청 시 관리자(admin) 이메일 자동 예약알림 메일 발송 기능이 모두 포함된 통합 스크립트입니다.
+ * 
+ * 1. 스프레드시트의 [확장 프로그램 > Apps Script]를 열어 기존 소스 코드를 모두 지우고 이 코드를 전체 붙여넣기 하십시오.
+ * 2. 상단 왼쪽의 저장 아이콘(Ctrl + S)을 클릭하여 저장합니다.
+ * 3. 우측 상단의 [배포] > [새 배포]를 클릭하십시오.
+ * 4. 웹 앱 유형으로 지정 후 아래를 설정하여 배포합니다:
+ *    - 웹 앱을 실행할 사용자: [나(본인 계정 / 스프레드시트 소유주)]
+ *    - 액세스 권한이 있는 사용자: [모든 사용자 (Anyone)]
+ * 5. 새 배포 후 생성된 새 "웹 앱 URL" 주소를 상단 대시보드의 연동 주소 입력창에 입력한 후 연결해 주십시오!
+ * =========================================================================================
+ */
+
+var SHEET_VEHICLES = "vehicles";
+var SHEET_RESERVATIONS = "reservations";
+var SHEET_DRIVE_LOGS = "logs";
+var SHEET_REPAIR_LOGS = "repairs";
+var SHEET_USERS = "users";
+
 function doGet(e) {
-  var action = e.parameter.action;
-  
-  if (action === "sendApprovalMail") {
-    var adminEmailsRaw = e.parameter.adminEmails || "";
-    var driverName = e.parameter.driverName || "";
-    var vehicleId = e.parameter.vehicleId || "";
-    var startDate = e.parameter.startDate || "";
-    var endDate = e.parameter.endDate || "";
-    var purpose = e.parameter.purpose || "";
-    var destination = e.parameter.destination || "";
-    
-    if (adminEmailsRaw) {
-      var emailList = adminEmailsRaw.split(",");
-      var subject = "[정심작업장 차량관리] " + driverName + " 복지사의 새로운 배차 예약 신청";
-      var body = "<h3>🚗 정심작업장 차량관리 배차 예약 알림</h3>" +
-                 "<p>차량사용자가 새로운 배차예약을 신청하였습니다. 관리자께서는 시스템에 접속하여 승인 여부를 결정해 주시기 바랍니다.</p>" +
-                 "<table border='1' cellpadding='8' style='border-collapse: collapse; border-color: #d6dfce; width: 100%; max-width: 500px;'>" +
-                 "  <tr style='background-color:#f4f6f0;'><th>예약 세부 구성</th><th>내용</th></tr>" +
-                 "  <tr><td><b>신청 및 예약자</b></td><td>" + driverName + "</td></tr>" +
-                 "  <tr><td><b>신청 차량</b></td><td>" + vehicleId + "</td></tr>" +
-                 "  <tr><td><b>목적 및 사유</b></td><td>" + purpose + "</td></tr>" +
-                 "  <tr><td><b>행선지 및 동승자</b></td><td>" + destination + "</td></tr>" +
-                 "  <tr><td><b>사용 예정 기간</b></td><td>" + startDate + " ~ " + endDate + "</td></tr>" +
-                 "</table>" +
-                 "<br/>" +
-                 "<p>✓ 최고관리자(Admin)께서는 아래의 정심작업장 차량관리시스템 웹 주소에 고유 패스코드로 로그인하신 후 즉각 <b>승인/반려/수정</b>을 진행하실 수 있습니다.</p>" +
-                 "<p><a href='https://jeongsim-car.web.app' style='background-color:#516931; color:white; padding: 10px 18px; text-decoration:none; border-radius:8px; font-weight:bold; display: inline-block;'>차량관리 대시보드 바로가기</a></p>";
-      
-      for (var i = 0; i < emailList.length; i++) {
-        var email = emailList[i].trim();
-        if (email) {
-          try {
-            MailApp.sendEmail({
-              to: email,
-              subject: subject,
-              htmlBody: body
-            });
-          } catch(err) {
-            Logger.log("Email dispatch failed: " + err.toString());
+  try {
+    var action = e.parameter.action;
+    if (!action) {
+      return createJsonResponse({ success: false, message: "Action parameter is missing." });
+    }
+
+    // 테이블 자동 초기화 보장
+    ensureInitialized();
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // 1. 전체 데이터 자동 읽기 (READ)
+    if (action === "read") {
+      var data = {
+        vehicles: getSheetData(ss.getSheetByName(SHEET_VEHICLES)),
+        reservations: getSheetData(ss.getSheetByName(SHEET_RESERVATIONS)),
+        logs: getSheetData(ss.getSheetByName(SHEET_DRIVE_LOGS)),
+        repairs: getSheetData(ss.getSheetByName(SHEET_REPAIR_LOGS)),
+        users: getSheetData(ss.getSheetByName(SHEET_USERS))
+      };
+      return createJsonResponse(data);
+    }
+
+    // 2. 예약 알림 메일 발송
+    if (action === "sendApprovalMail") {
+      var adminEmailsRaw = e.parameter.adminEmails || "";
+      var driverName = e.parameter.driverName || "";
+      var vehicleId = e.parameter.vehicleId || "";
+      var startDate = e.parameter.startDate || "";
+      var endDate = e.parameter.endDate || "";
+      var purpose = e.parameter.purpose || "";
+      var destination = e.parameter.destination || "";
+      var systemUrl = e.parameter.systemUrl || "https://ais-pre-utig7edkk25tu2cg44ccvw-10224509173.asia-northeast1.run.app";
+
+      if (adminEmailsRaw) {
+        var emailList = adminEmailsRaw.split(",");
+        var subject = "[정심작업장 차량관리] " + driverName + " 복지사의 새로운 배차 예약 신청";
+        var body = "<h3>🚗 정심작업장 차량관리 배차 예약 알림</h3>" +
+                   "<p>차량사용자가 새로운 배차예약을 신청하였습니다. 관리자께서는 시스템에 접속하여 승인 여부를 결정해 주시기 바랍니다.</p>" +
+                   "<table border='1' cellpadding='8' style='border-collapse: collapse; border-color: #d6dfce; width: 100%; max-width: 500px;'>" +
+                   "  <tr style='background-color:#f4f6f0;'><th>구분</th><th>상세 신청 내용</th></tr>" +
+                   "  <tr><td><b>신청 및 예약자</b></td><td>" + driverName + "</td></tr>" +
+                   "  <tr><td><b>신청 차량</b></td><td>" + vehicleId + "</td></tr>" +
+                   "  <tr><td><b>목적 및 사유</b></td><td>" + purpose + "</td></tr>" +
+                   "  <tr><td><b>행선지 및 동승자</b></td><td>" + destination + "</td></tr>" +
+                   "  <tr><td><b>사용 예정 기간</b></td><td>" + startDate + " ~ " + endDate + "</td></tr>" +
+                   "</table>" +
+                   "<br/>" +
+                   "<p>✓ 최고관리자(Admin)께서는 웹브라우저에서 로그인 후, 즉시 <b>승인 / 반려 / 수정</b>을 처리하실 수 있습니다.</p>" +
+                   "<p><a href='" + systemUrl + "' style='background-color:#516931; color:white; padding: 10px 18px; text-decoration:none; border-radius:8px; font-weight:bold; display: inline-block;'>차량관리 시스템 바로가기</a></p>";
+
+        for (var i = 0; i < emailList.length; i++) {
+          var email = emailList[i].trim();
+          if (email) {
+            try {
+              MailApp.sendEmail({
+                to: email,
+                subject: subject,
+                htmlBody: body
+              });
+            } catch(err) {
+              Logger.log("Email dispatch failed to " + email + ": " + err.toString());
+            }
           }
         }
       }
+      return createJsonResponse({ success: true, message: "Emails sent out to admin lists." });
     }
-    return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Emails sent out to admin lists." }))
-                         .setMimeType(ContentService.MimeType.JSON);
+
+    // 3. 차량 추가 (addVehicle)
+    if (action === "addVehicle") {
+      var rawData = e.parameter.data;
+      var item = JSON.parse(rawData);
+      var sheet = ss.getSheetByName(SHEET_VEHICLES);
+      sheet.appendRow([
+        item.id,
+        item.model,
+        item.insuranceDate,
+        item.lastOilMileage,
+        item.oilChangeCycle,
+        item.currentMileage,
+        item.photoUrl,
+        item.status || "운행가능",
+        item.institution || ""
+      ]);
+      return createJsonResponse({ success: true });
+    }
+
+    // 4. 차량 개별 속성 업데이트 (updateVehicle)
+    if (action === "updateVehicle") {
+      var rowNum = parseInt(e.parameter.rowNum, 10);
+      var column = e.parameter.column;
+      var value = e.parameter.value;
+      var sheet = ss.getSheetByName(SHEET_VEHICLES);
+
+      if (rowNum && column) {
+        var colIdx = -1;
+        if (column === "insuranceDate") colIdx = 3;
+        else if (column === "lastOilMileage") colIdx = 4;
+        else if (column === "currentMileage") colIdx = 6;
+        else if (column === "photoUrl") colIdx = 7;
+        else if (column === "status") colIdx = 8;
+        else if (column === "institution") colIdx = 9;
+
+        if (colIdx !== -1) {
+          sheet.getRange(rowNum, colIdx).setValue(value);
+          return createJsonResponse({ success: true });
+        }
+      }
+      return createJsonResponse({ success: false, message: "Invalid parameters or column offset." });
+    }
+
+    // 5. 배차예약 행 추가 (addReservation)
+    if (action === "addReservation") {
+      var rawData = e.parameter.data;
+      var item = JSON.parse(rawData);
+      var sheet = ss.getSheetByName(SHEET_RESERVATIONS);
+      sheet.appendRow([
+        item.id,
+        item.vehicleId,
+        item.driverName,
+        item.userEmail,
+        item.startDate,
+        item.endDate,
+        item.purpose,
+        item.destination,
+        item.passengers,
+        item.status || "대기"
+      ]);
+      return createJsonResponse({ success: true });
+    }
+
+    // 6. 예약 승인 상태 업데이트 (updateReservationStatus)
+    if (action === "updateReservationStatus") {
+      var rowNum = parseInt(e.parameter.rowNum, 10);
+      var status = e.parameter.status;
+      var sheet = ss.getSheetByName(SHEET_RESERVATIONS);
+
+      if (rowNum && status) {
+        sheet.getRange(rowNum, 10).setValue(status);
+        return createJsonResponse({ success: true });
+      }
+      return createJsonResponse({ success: false, message: "Invalid reservation arguments." });
+    }
+
+    // 7. 운행 일지 기록 추가 (addDriveLog)
+    if (action === "addDriveLog") {
+      var rawData = e.parameter.data;
+      var item = JSON.parse(rawData);
+      var sheet = ss.getSheetByName(SHEET_DRIVE_LOGS);
+      sheet.appendRow([
+        item.id,
+        item.vehicleId,
+        item.driverName,
+        item.driveDate,
+        item.startTime,
+        item.endTime,
+        item.purpose,
+        item.passengerCount,
+        item.startMileage,
+        item.endMileage,
+        item.distance,
+        item.destination,
+        item.notes,
+        item.fuelCost,
+        item.tollCost || 0,
+        item.photoUrl,
+        item.createdAt
+      ]);
+
+      try {
+        var vehicleIdToUpdate = item.vehicleId;
+        var finalMileage = parseInt(item.endMileage, 10);
+        if (vehicleIdToUpdate && finalMileage) {
+          var vehicleSheet = ss.getSheetByName(SHEET_VEHICLES);
+          var vehiclesData = vehicleSheet.getDataRange().getValues();
+          for (var rIdx = 1; rIdx < vehiclesData.length; rIdx++) {
+            if (vehiclesData[rIdx][0] === vehicleIdToUpdate) {
+              vehicleSheet.getRange(rIdx + 1, 6).setValue(finalMileage);
+              break;
+            }
+          }
+        }
+      } catch (distErr) {}
+
+      return createJsonResponse({ success: true });
+    }
+
+    // 8. 차량 점검/수리기록 기록 추가 (addRepairLog)
+    if (action === "addRepairLog") {
+      var rawData = e.parameter.data;
+      var item = JSON.parse(rawData);
+      var sheet = ss.getSheetByName(SHEET_REPAIR_LOGS);
+      sheet.appendRow([
+        item.id,
+        item.vehicleId,
+        item.repairDate,
+        item.description,
+        item.cost,
+        item.mileage,
+        item.isOilChanged ? "예" : "아니오",
+        item.workshopName,
+        item.createdAt
+      ]);
+
+      try {
+        var vehicleIdToUpdate = item.vehicleId;
+        var rMileage = parseInt(item.mileage, 10);
+        if (item.isOilChanged && vehicleIdToUpdate && rMileage) {
+          var vehicleSheet = ss.getSheetByName(SHEET_VEHICLES);
+          var vehiclesData = vehicleSheet.getDataRange().getValues();
+          for (var rIdx = 1; rIdx < vehiclesData.length; rIdx++) {
+            if (vehiclesData[rIdx][0] === vehicleIdToUpdate) {
+              vehicleSheet.getRange(rIdx + 1, 4).setValue(rMileage);
+              break;
+            }
+          }
+        }
+      } catch (oilErr) {}
+
+      return createJsonResponse({ success: true });
+    }
+
+    // 9. 사용자 생성 (addUser)
+    if (action === "addUser") {
+      var rawData = e.parameter.data;
+      var item = JSON.parse(rawData);
+      var sheet = ss.getSheetByName(SHEET_USERS);
+      sheet.appendRow([
+        item.username,
+        item.accessKey,
+        item.role || "Staff",
+        item.email || ""
+      ]);
+      return createJsonResponse({ success: true });
+    }
+
+    // 10. 사용자 정보 업데이트 (updateUser)
+    if (action === "updateUser") {
+      var rowNum = parseInt(e.parameter.rowNum, 10);
+      var rawData = e.parameter.data;
+      var item = JSON.parse(rawData);
+      var sheet = ss.getSheetByName(SHEET_USERS);
+
+      if (rowNum && item) {
+        sheet.getRange(rowNum, 1).setValue(item.username);
+        sheet.getRange(rowNum, 2).setValue(item.accessKey);
+        sheet.getRange(rowNum, 3).setValue(item.role || "Staff");
+        sheet.getRange(rowNum, 4).setValue(item.email || "");
+        return createJsonResponse({ success: true });
+      }
+      return createJsonResponse({ success: false, message: "Invalid user update parameters." });
+    }
+
+    // 11. 사용자 삭제 (deleteUser)
+    if (action === "deleteUser") {
+      var rowNum = parseInt(e.parameter.rowNum, 10);
+      var sheet = ss.getSheetByName(SHEET_USERS);
+
+      if (rowNum) {
+        sheet.deleteRow(rowNum);
+        return createJsonResponse({ success: true });
+      }
+      return createJsonResponse({ success: false, message: "Invalid user delete parameters." });
+    }
+
+    return createJsonResponse({ success: false, message: "Unknown action parameter: " + action });
+  } catch (error) {
+    return createJsonResponse({ success: false, error: error.toString() });
   }
+}
+
+function getSheetData(sheet) {
+  if (!sheet) return [];
+  var range = sheet.getDataRange();
+  if (range.getNumRows() === 0) return [];
+  return range.getValues();
+}
+
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+                       .setMimeType(ContentService.MimeType.JSON);
+}
+
+function ensureInitialized() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // (여기에 기존 doGet 내의 action === "read", action === "addReservation" 등의 구문을 차례대로 연계해 실행하십시오)
+  var sheetVehicles = ss.getSheetByName(SHEET_VEHICLES);
+  if (!sheetVehicles) {
+    sheetVehicles = ss.insertSheet(SHEET_VEHICLES);
+    sheetVehicles.appendRow(["차량번호", "차종", "보험갱신일", "마지막오일교환누적거리", "오일교환주기", "현재누적거리", "차량사진", "상태", "관리기관"]);
+    sheetVehicles.appendRow(["12가 3456 (1호차)", "카니발 (리프트 리무진)", "2026-12-15", 45000, 10000, 48500, "", "운행가능", "정심작업장"]);
+    sheetVehicles.appendRow(["34나 7890 (2호차)", "스타리아 (휠체어 리프트)", "2026-06-30", 12000, 10000, 21500, "", "운행가능", "정심작업장"]);
+  }
+
+  var sheetReservations = ss.getSheetByName(SHEET_RESERVATIONS);
+  if (!sheetReservations) {
+    sheetReservations = ss.insertSheet(SHEET_RESERVATIONS);
+    sheetReservations.appendRow(["예약ID", "차량ID", "운행자", "이메일", "사용시작일시", "사용종료일시", "운행목적", "행선지/동승자", "탑승인원구성/동승자", "승인상태"]);
+  }
+
+  var sheetLogs = ss.getSheetByName(SHEET_DRIVE_LOGS);
+  if (!sheetLogs) {
+    sheetLogs = ss.insertSheet(SHEET_DRIVE_LOGS);
+    sheetLogs.appendRow(["로그ID", "차량ID", "운행자", "운행일자", "시작시간", "종료시간", "운행목적", "탑승인원", "출발누적거리", "도착누적거리", "운행거리", "행선지", "비고/특이사항", "유류비", "통행료", "사진", "등록일시"]);
+  }
+
+  var sheetRepairs = ss.getSheetByName(SHEET_REPAIR_LOGS);
+  if (!sheetRepairs) {
+    sheetRepairs = ss.insertSheet(SHEET_REPAIR_LOGS);
+    sheetRepairs.appendRow(["정비ID", "차량ID", "정비일자", "정비내용", "정비비용", "정비시누적거리", "오일교환여부", "정비소명", "등록일시"]);
+  }
+
+  var sheetUsers = ss.getSheetByName(SHEET_USERS);
+  if (!sheetUsers) {
+    sheetUsers = ss.insertSheet(SHEET_USERS);
+    sheetUsers.appendRow(["이름", "접속키", "권한", "이메일"]);
+    sheetUsers.appendRow(["관리자", "admin", "admin", "jswork01@jeongsim.or.kr"]);
+    sheetUsers.appendRow(["권기은", "kieun", "admin", "westrc1@jeongsim.or.kr"]);
+    sheetUsers.appendRow(["김대영", "daey", "admin", "jswork01@jeongsim.or.kr"]);
+  }
+
+  try {
+    var rawSheet1 = ss.getSheetByName("시트1") || ss.getSheetByName("Sheet1");
+    if (rawSheet1 && ss.getSheets().length > 1) {
+      ss.deleteSheet(rawSheet1);
+    }
+  } catch(e) {}
 }`}
-                  className="w-full h-32 p-2 font-mono text-[8.5px] bg-[#fdfdfd] border border-stone-250 rounded-lg focus:outline-none select-all cursor-pointer"
-                  onClick={(e) => {
-                    const target = e.currentTarget;
-                    target.select();
-                  }}
-                />
-                <span className="text-[7.5px] text-stone-450 font-bold">💡 마우스 클릭 시 코드 전체가 선택되어 간편히 복사할 수 있습니다.</span>
+                      className="w-full h-32 p-2 font-mono text-[8.5px] bg-[#fdfdfd] border border-stone-250 rounded-lg focus:outline-none select-all cursor-pointer"
+                      onClick={(e) => {
+                        const target = e.currentTarget;
+                        target.select();
+                      }}
+                    />
+                    <span className="text-[7.5px] text-stone-450 font-bold">💡 마우스 클릭 시 코드 전체가 선택되어 간편히 복사할 수 있습니다.</span>
+                  </div>
+                </details>
               </div>
-            </details>
-          </div>
 
           {successMsg && (
             <div className="p-3 bg-emerald-50 border border-emerald-200 text-[#425932] font-semibold rounded-2xl flex items-center gap-1.5 select-none text-[10.5px]">
