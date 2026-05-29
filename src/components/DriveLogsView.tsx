@@ -932,17 +932,17 @@ export default function DriveLogsView({
         const totalRepairCost = printableRepairs.reduce((sum, r) => sum + r.cost, 0);
 
         return (
-          <div id="print-modal-overlay" className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 overflow-y-auto p-4 flex flex-col items-center justify-start no-print">
+          <div id="print-modal-overlay" className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 overflow-y-auto p-4 flex flex-col items-center justify-start">
             {/* Modal Card */}
             <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col h-auto max-h-[90vh] overflow-hidden my-4 border border-[#d6dfce] animate-fadeIn">
               
               {/* Modal Header */}
-              <div className="bg-[#516931] text-white p-4 flex items-center justify-between shrink-0">
+              <div className="bg-[#516931] text-white p-4 flex items-center justify-between shrink-0 no-print">
                 <div className="flex items-center gap-2">
                   <Printer className="w-5 h-5 text-emerald-350" />
                   <div>
                     <h3 className="text-sm font-bold text-white">차량별 통합 운행·정비 대장 일지 출력</h3>
-                    <p className="text-[10px] text-[#f4f6f0]/80">담당, 국장, 관장 3단 결재란이 포함된 공식 행정 보고 양식입니다</p>
+                    <p className="text-[10px] text-[#f4f6f0]/80">담당, 국장, 원장 3단 결재란이 포함된 공식 행정 보고 양식입니다</p>
                   </div>
                 </div>
                 <button
@@ -955,7 +955,7 @@ export default function DriveLogsView({
               </div>
 
               {/* Modal Filter Settings */}
-              <div className="p-4 bg-[#f4f6f0] border-b border-[#d6dfce]/85 grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0 text-xs">
+              <div className="p-4 bg-[#f4f6f0] border-b border-[#d6dfce]/85 grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0 text-xs no-print">
                 {/* Select Vehicle */}
                 <div className="flex flex-col gap-1">
                   <label className="font-bold text-[#516931] text-[10.5px]">대상 차량 필터</label>
@@ -995,7 +995,7 @@ export default function DriveLogsView({
               </div>
 
               {/* Modal Body: Report Preview Sheet */}
-              <div className="flex-1 overflow-y-auto p-6 bg-zinc-100 flex justify-center scrollbar-thin">
+              <div className="flex-1 overflow-y-auto p-6 bg-zinc-100 flex justify-center scrollbar-thin print-body-wrapper">
                 <div 
                   id="printable-report-container" 
                   className="bg-white border border-gray-300 shadow-lg p-10 w-full max-w-[210mm] min-h-[297mm] text-zinc-900 flex flex-col font-sans relative text-xs"
@@ -1006,31 +1006,87 @@ export default function DriveLogsView({
                     @media print {
                       @page {
                         size: A4 portrait;
-                        margin: 15mm;
+                        margin: 0;
                       }
                       /* Complete Hide of everything else */
                       body * {
                         visibility: hidden !important;
+                        background-color: transparent !important;
                       }
-                      #printable-report-container, #printable-report-container * {
+                      /* Keep print modal elements and printable-report-container visible */
+                      #root,
+                      #print-modal-overlay,
+                      #print-modal-overlay > div,
+                      .print-body-wrapper,
+                      #printable-report-container, 
+                      #printable-report-container * {
                         visibility: visible !important;
                       }
-                      #printable-report-container {
+                      
+                      /* Reset fixed modal overlay to standard block during print */
+                      #print-modal-overlay {
                         position: absolute !important;
                         left: 0 !important;
                         top: 0 !important;
                         width: 100% !important;
                         height: auto !important;
+                        background: transparent !important;
+                        backdrop-filter: none !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        overflow: visible !important;
+                        display: block !important;
+                      }
+
+                      /* Reset modal container card */
+                      #print-modal-overlay > div {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        height: auto !important;
+                        background: transparent !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        overflow: visible !important;
+                        display: block !important;
+                      }
+
+                      /* Reset modal layout wrapper */
+                      .print-body-wrapper {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        background: transparent !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        overflow: visible !important;
+                        display: block !important;
+                      }
+
+                      /* Format report sheet container */
+                      #printable-report-container {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 210mm !important;
+                        min-height: 297mm !important;
+                        height: auto !important;
                         display: block !important;
                         background: white !important;
                         color: black !important;
-                        padding: 0 !important;
+                        padding: 15mm !important;
                         margin: 0 !important;
                         border: none !important;
                         box-shadow: none !important;
+                        box-sizing: border-box !important;
                       }
                       .no-print {
                         display: none !important;
+                        visibility: hidden !important;
                       }
                     }
                   `}</style>
@@ -1056,7 +1112,7 @@ export default function DriveLogsView({
                           </td>
                           <td className="border border-zinc-950 bg-zinc-50 font-bold py-1 w-14">담 당</td>
                           <td className="border border-zinc-950 bg-zinc-50 font-bold py-1 w-14">국 장</td>
-                          <td className="border border-zinc-950 bg-zinc-50 font-bold py-1 w-14">관 장</td>
+                          <td className="border border-zinc-950 bg-zinc-50 font-bold py-1 w-14">원 장</td>
                         </tr>
                         <tr className="h-12">
                           <td className="border border-zinc-950 relative">
@@ -1248,7 +1304,7 @@ export default function DriveLogsView({
               </div>
 
               {/* Modal Footer Actions */}
-              <div className="p-4 bg-zinc-50 border-t border-[#d6dfce]/85 flex items-center justify-end gap-2.5 shrink-0">
+              <div className="p-4 bg-zinc-50 border-t border-[#d6dfce]/85 flex items-center justify-end gap-2.5 shrink-0 no-print">
                 <button
                   type="button"
                   onClick={() => setIsPrintModalOpen(false)}
