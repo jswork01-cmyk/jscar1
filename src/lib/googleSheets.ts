@@ -1,3 +1,5 @@
+import { formatKSTDate, formatKSTDateTime } from './dateUtils';
+
 export interface Vehicle {
   id: string; // 차량 번호 (e.g., 12가 3456)
   model: string; // 차종 (e.g., 스타리아, 카니발)
@@ -190,7 +192,7 @@ function parseVehicles(rows: any[][]): Vehicle[] {
     return {
       id: safeString(row[0]),
       model: safeString(row[1]),
-      insuranceDate: safeString(row[2]),
+      insuranceDate: formatKSTDate(safeString(row[2])),
       lastOilMileage: safeNumber(row[3]),
       oilChangeCycle: safeNumber(row[4], 10000),
       currentMileage: safeNumber(row[5]),
@@ -211,8 +213,8 @@ function parseReservations(rows: any[][]): Reservation[] {
       vehicleId: safeString(row[1]),
       driverName: safeString(row[2]),
       userEmail: safeString(row[3]),
-      startDate: safeString(row[4]),
-      endDate: safeString(row[5]),
+      startDate: formatKSTDateTime(safeString(row[4])),
+      endDate: formatKSTDateTime(safeString(row[5])),
       purpose: safeString(row[6]),
       destination: safeString(row[7]),
       passengers: safeString(row[8]),
@@ -230,7 +232,7 @@ function parseLogs(rows: any[][]): DriveLog[] {
       id: safeString(row[0]),
       vehicleId: safeString(row[1]),
       driverName: safeString(row[2]),
-      driveDate: safeString(row[3]),
+      driveDate: formatKSTDate(safeString(row[3])),
       startTime: safeString(row[4]),
       endTime: safeString(row[5]),
       purpose: safeString(row[6]),
@@ -256,7 +258,7 @@ function parseRepairs(rows: any[][]): RepairLog[] {
     return {
       id: safeString(row[0]),
       vehicleId: safeString(row[1]),
-      repairDate: safeString(row[2]),
+      repairDate: formatKSTDate(safeString(row[2])),
       description: safeString(row[3]),
       cost: safeNumber(row[4]),
       mileage: safeNumber(row[5]),
@@ -397,6 +399,8 @@ export const addReservationRow = async (
   const newRowNum = reservations.length > 0 ? Math.max(...reservations.map((r: any) => r.rowNum || 0)) + 1 : 2;
   const newReservation: Reservation = {
     ...reservation,
+    startDate: formatKSTDateTime(reservation.startDate),
+    endDate: formatKSTDateTime(reservation.endDate),
     rowNum: newRowNum
   };
   reservations.push(newReservation);
@@ -480,6 +484,7 @@ export const addDriveLogRow = async (
   const newRowNum = logs.length > 0 ? Math.max(...logs.map((l: any) => l.rowNum || 0)) + 1 : 2;
   const newLog: DriveLog = {
     ...log,
+    driveDate: formatKSTDate(log.driveDate),
     rowNum: newRowNum
   };
   logs.push(newLog);
@@ -507,6 +512,7 @@ export const addRepairLogRow = async (
   const newRowNum = repairs.length > 0 ? Math.max(...repairs.map((r: any) => r.rowNum || 0)) + 1 : 2;
   const newRepair: RepairLog = {
     ...repair,
+    repairDate: formatKSTDate(repair.repairDate),
     rowNum: newRowNum
   };
   repairs.push(newRepair);

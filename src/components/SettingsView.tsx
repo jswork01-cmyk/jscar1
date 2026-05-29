@@ -678,7 +678,38 @@ function getSheetData(sheet) {
   if (!sheet) return [];
   var range = sheet.getDataRange();
   if (range.getNumRows() === 0) return [];
-  return range.getValues();
+  var values = range.getValues();
+  var sheetName = sheet.getName();
+  
+  for (var rIdx = 0; rIdx < values.length; rIdx++) {
+    for (var cIdx = 0; cIdx < values[rIdx].length; cIdx++) {
+      var val = values[rIdx][cIdx];
+      if (val instanceof Date) {
+        var yyyy = val.getFullYear();
+        var mm = ("0" + (val.getMonth() + 1)).slice(-2);
+        var dd = ("0" + val.getDate()).slice(-2);
+        var hh = ("0" + val.getHours()).slice(-2);
+        var min = ("0" + val.getMinutes()).slice(-2);
+        
+        if (sheetName === SHEET_VEHICLES && cIdx === 2) {
+          values[rIdx][cIdx] = yyyy + "-" + mm + "-" + dd;
+        } else if (sheetName === SHEET_DRIVE_LOGS && cIdx === 3) {
+          values[rIdx][cIdx] = yyyy + "-" + mm + "-" + dd;
+        } else if (sheetName === SHEET_REPAIR_LOGS && cIdx === 2) {
+          values[rIdx][cIdx] = yyyy + "-" + mm + "-" + dd;
+        } else if (sheetName === SHEET_RESERVATIONS && (cIdx === 4 || cIdx === 5)) {
+          values[rIdx][cIdx] = yyyy + "-" + mm + "-" + dd + " " + hh + ":" + min;
+        } else {
+          if (val.getHours() === 0 && val.getMinutes() === 0 && val.getSeconds() === 0) {
+            values[rIdx][cIdx] = yyyy + "-" + mm + "-" + dd;
+          } else {
+            values[rIdx][cIdx] = yyyy + "-" + mm + "-" + dd + " " + hh + ":" + min;
+          }
+        }
+      }
+    }
+  }
+  return values;
 }
 
 function createJsonResponse(data) {
