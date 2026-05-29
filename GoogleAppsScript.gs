@@ -66,7 +66,7 @@ function doGet(e) {
       var endDate = e.parameter.endDate || "";
       var purpose = e.parameter.purpose || "";
       var destination = e.parameter.destination || "";
-      var systemUrl = e.parameter.systemUrl || "https://ais-pre-utig7edkk25tu2cg44ccvw-10224509173.asia-northeast1.run.app";
+      var systemUrl = e.parameter.systemUrl || "https://jscar1.vercel.app";
 
       if (adminEmailsRaw) {
         var emailList = adminEmailsRaw.split(",");

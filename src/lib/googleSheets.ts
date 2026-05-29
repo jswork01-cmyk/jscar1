@@ -417,7 +417,9 @@ export const addReservationRow = async (
           .map((u: any) => u.email.trim());
 
         if (adminEmails.length > 0) {
-          const systemUrl = typeof window !== 'undefined' ? window.location.origin : 'https://ais-pre-utig7edkk25tu2cg44ccvw-10224509173.asia-northeast1.run.app';
+          const systemUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && !window.location.hostname.includes('run.app')
+            ? window.location.origin
+            : 'https://jscar1.vercel.app';
           const emailFetchUrl = `${gasUrl}${gasUrl.includes('?') ? '&' : '?'}action=sendApprovalMail` +
             `&adminEmails=${encodeURIComponent(adminEmails.join(','))}` +
             `&driverName=${encodeURIComponent(newReservation.driverName)}` +
