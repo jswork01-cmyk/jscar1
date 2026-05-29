@@ -122,6 +122,41 @@ export default function App() {
   const [presetVehicleId, setPresetVehicleId] = useState('');
   const [presetDriverName, setPresetDriverName] = useState('');
 
+  // Pull-to-refresh states for phone gestures
+  const [pullStartY, setPullStartY] = useState<number | null>(null);
+  const [pullDistance, setPullDistance] = useState<number>(0);
+  const [isPulling, setIsPulling] = useState<boolean>(false);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    if (scrollTop === 0) {
+      setPullStartY(e.touches[0].clientY);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (pullStartY === null) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - pullStartY;
+    if (diff > 0) {
+      setIsPulling(true);
+      const calculatedDistance = Math.min(80, diff * 0.45);
+      setPullDistance(calculatedDistance);
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (pullStartY === null) return;
+    setPullStartY(null);
+    setIsPulling(false);
+    if (pullDistance >= 60) {
+      setPullDistance(0);
+      await loadSpreadsheetData('', '');
+    } else {
+      setPullDistance(0);
+    }
+  };
+
   // 1. Initialize Auth and Session on mount
   useEffect(() => {
     const savedSession = localStorage.getItem('welfare_active_session_user');
@@ -887,8 +922,29 @@ export default function App() {
         /* 3. CORE FLIGHT INTERFACE */
         <div className="flex-1 flex flex-col h-full bg-[#f4f6f0] pb-16 overflow-x-hidden select-none">
           
-          {/* Scrollable Core Screen Area */}
-          <div className="flex-1 overflow-y-auto pb-4">
+          {/* Scrollable Core Screen Area with Pull-to-refresh mobile listeners */}
+          <div 
+            className="flex-1 overflow-y-auto pb-4 relative"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Real-time pull indicator */}
+            {pullDistance > 0 && (
+              <div 
+                className="flex flex-col items-center justify-center bg-[#516931]/10 border-b border-[#d6dfce]/40 overflow-hidden select-none transition-all duration-75"
+                style={{ height: `${pullDistance}px` }}
+              >
+                <div className="flex items-center gap-2 text-[#516931] font-bold text-xs">
+                  <Loader2 
+                    className={`w-4 h-4 text-[#516931] ${pullDistance >= 60 ? 'animate-spin' : ''}`}
+                    style={pullDistance < 60 ? { transform: `rotate(${pullDistance * 6}deg)` } : undefined}
+                  />
+                  <span>{pullDistance >= 60 ? '놓아서 즉시 데이터 동기화!' : '아래로 당겨서 새로 동기화'}</span>
+                </div>
+                <p className="text-[8px] text-[#7b8f6c] font-extrabold tracking-wider mt-0.5">정심작업장 차량관리동기화</p>
+              </div>
+            )}
             
             {/* Route Tabs content view */}
             {activeTab === 'dashboard' && (
