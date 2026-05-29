@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Vehicle, Reservation, RepairLog } from '../lib/googleSheets';
-import { formatKSTDateTime } from '../lib/dateUtils';
+import { formatKSTDateTime, formatKSTDate } from '../lib/dateUtils';
 import { 
   Car, Calendar, ShieldAlert, Wrench, AlertTriangle, 
-  CheckCircle, ChevronRight, Gauge, TrendingUp, DollarSign,
-  Info, LogOut
+  CheckCircle, ChevronRight, ChevronLeft, Gauge, TrendingUp, DollarSign,
+  Info, LogOut, Clock, AlertCircle
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -41,6 +41,114 @@ export default function DashboardView({
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [selectedRepairInst, setSelectedRepairInst] = useState<string>('전체');
   
+  // States for interactive Scheduler / Calendar
+  const [calendarViewMode, setCalendarViewMode] = useState<'daily' | 'weekly'>('daily');
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date('2026-05-20'));
+  const [selectedCalRes, setSelectedCalRes] = useState<Reservation | null>(null);
+
+  const formatDateStr = (date: Date): string => {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const parseDateTimeToMs = (str: string) => {
+    const clean = str.trim().replace(' ', 'T');
+    const d = new Date(clean);
+    if (!isNaN(d.getTime())) return d.getTime();
+    const parts = str.split(' ');
+    const dateParts = (parts[0] || '').split('-');
+    const timeParts = (parts[1] || '').split(':');
+    const year = parseInt(dateParts[0]) || 2026;
+    const month = (parseInt(dateParts[1]) || 1) - 1;
+    const day = parseInt(dateParts[2]) || 1;
+    const hour = parseInt(timeParts[0]) || 0;
+    const min = parseInt(timeParts[1]) || 0;
+    return new Date(year, month, day, hour, min).getTime();
+  };
+
+  const getWeekDates = (date: Date): { dayName: string; dateStr: string; dateObj: Date }[] => {
+    const currentDay = date.getDay(); // 0 is Sun, 1 is Mon, etc.
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(date);
+    monday.setDate(date.getDate() + distanceToMonday);
+
+    const days: { dayName: string; dateStr: string; dateObj: Date }[] = [];
+    const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
+
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      const yyyy = day.getFullYear();
+      const mm = String(day.getMonth() + 1).padStart(2, '0');
+      const dd = String(day.getDate()).padStart(2, '0');
+      days.push({
+        dayName: dayNames[i],
+        dateStr: `${yyyy}-${mm}-${dd}`,
+        dateObj: day
+      });
+    }
+    return days;
+  };
+
+  const getOverlapConflicts = (dayReservations: Reservation[]) => {
+    const activeRes = dayReservations.filter(r => r.status !== '반려' && r.status !== '완료');
+    const conflicts: Array<{ res1: Reservation; res2: Reservation }> = [];
+    
+    for (let i = 0; i < activeRes.length; i++) {
+      for (let j = i + 1; j < activeRes.length; j++) {
+        const r1 = activeRes[i];
+        const r2 = activeRes[j];
+         
+        if (r1.vehicleId === r2.vehicleId) {
+          const start1 = parseDateTimeToMs(r1.startDate);
+          const end1 = parseDateTimeToMs(r1.endDate);
+          const start2 = parseDateTimeToMs(r2.startDate);
+          const end2 = parseDateTimeToMs(r2.endDate);
+          
+          if (start1 < end2 && start2 < end1) {
+            conflicts.push({ res1: r1, res2: r2 });
+          }
+        }
+      }
+    }
+    return conflicts;
+  };
+
+  const isHasConflict = (resId: string, conflicts: any[]) => {
+    return conflicts.some(c => c.res1.id === resId || c.res2.id === resId);
+  };
+
+  const getTimelineCoords = (res: Reservation, dateStr: string) => {
+    const targetDayStartMs = new Date(`${dateStr}T08:00:00`).getTime();
+    const targetDayEndMs = new Date(`${dateStr}T20:00:00`).getTime();
+    const totalDurationMs = targetDayEndMs - targetDayStartMs; // 12 hours in ms
+
+    const resStartMs = parseDateTimeToMs(res.startDate);
+    const resEndMs = parseDateTimeToMs(res.endDate);
+
+    const clippedStartMs = Math.max(targetDayStartMs, resStartMs);
+    const clippedEndMs = Math.min(targetDayEndMs, resEndMs);
+
+    if (clippedEndMs <= clippedStartMs) {
+      return null;
+    }
+
+    const startPercent = ((clippedStartMs - targetDayStartMs) / totalDurationMs) * 100;
+    const widthPercent = ((clippedEndMs - clippedStartMs) / totalDurationMs) * 100;
+
+    const startsBefore = resStartMs < targetDayStartMs;
+    const endsAfter = resEndMs > targetDayEndMs;
+
+    return {
+      left: startPercent,
+      width: widthPercent,
+      startsBefore,
+      endsAfter
+    };
+  };
+
   // Calculate alerts based on mock/live date
   const todayDate = new Date('2026-05-20');
 
@@ -371,6 +479,475 @@ export default function DashboardView({
           </div>
         )}
       </div>
+
+      {/* 🗓️ 배차 예약 시각화 캘린더 (일별/주별 캘린더 뷰) */}
+      <div className="bg-white border border-[#d6dfce]/85 shadow-sm p-4 rounded-3xl flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[#d6dfce]/40 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-[#516931]/10 text-[#516931]">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#1e2815]">배차 예약 캘린더 (일별/주별 시각화)</h3>
+              <p className="text-[10px] text-[#7b8f6c] font-semibold">동일 차량 배차 예약 시간 중복(오버랩)을 실시간 체크하여 충돌을 방지합니다.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View Toggle */}
+            <div className="inline-flex bg-[#f4f6f0] p-1 rounded-xl border border-[#d6dfce]/65 text-[10px] font-bold select-none">
+              <button
+                type="button"
+                onClick={() => setCalendarViewMode('daily')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  calendarViewMode === 'daily'
+                    ? 'bg-[#516931] text-white shadow-xs'
+                    : 'text-[#516931] hover:bg-[#e9eee2]'
+                }`}
+              >
+                일별 타임라인
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalendarViewMode('weekly')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  calendarViewMode === 'weekly'
+                    ? 'bg-[#516931] text-white shadow-xs'
+                    : 'text-[#516931] hover:bg-[#e9eee2]'
+                }`}
+              >
+                주별 일정표
+              </button>
+            </div>
+
+            {/* Date Pickers / Nav */}
+            <div className="flex items-center gap-1.5 bg-[#f4f6f0] p-1 rounded-xl border border-[#d6dfce]/50">
+              <button
+                type="button"
+                onClick={() => {
+                  const newDate = new Date(calendarDate);
+                  if (calendarViewMode === 'daily') {
+                    newDate.setDate(calendarDate.getDate() - 1);
+                  } else {
+                    newDate.setDate(calendarDate.getDate() - 7);
+                  }
+                  setCalendarDate(newDate);
+                }}
+                className="p-1 hover:bg-[#e9eee2] text-[#516931] rounded-lg transition cursor-pointer"
+                title={calendarViewMode === 'daily' ? '이전 1일' : '이전 1주'}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => setCalendarDate(new Date('2026-05-20'))}
+                className="text-[9.5px] font-extrabold px-1.5 py-1 text-[#516931] hover:bg-[#e9eee2] rounded-lg transition cursor-pointer"
+                title="데이터 기준일인 2026년 5월 20일로 이동합니다."
+              >
+                기준일(5/20)
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const newDate = new Date(calendarDate);
+                  if (calendarViewMode === 'daily') {
+                    newDate.setDate(calendarDate.getDate() + 1);
+                  } else {
+                    newDate.setDate(calendarDate.getDate() + 7);
+                  }
+                  setCalendarDate(newDate);
+                }}
+                className="p-1 hover:bg-[#e9eee2] text-[#516931] rounded-lg transition cursor-pointer"
+                title={calendarViewMode === 'daily' ? '다음 1일' : '다음 1주'}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Native Date Input */}
+            <input 
+              type="date"
+              value={formatDateStr(calendarDate)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val) {
+                  setCalendarDate(new Date(val));
+                }
+              }}
+              className="px-2.5 py-1.5 border border-[#d6dfce] rounded-xl text-[10.5px] font-bold text-[#1e2815] focus:outline-none focus:ring-1 focus:ring-[#516931] bg-[#f4f6f0]/65 text-center"
+            />
+          </div>
+        </div>
+
+        {/* Current Date Label */}
+        <div className="flex items-center justify-between text-xs bg-[#f4f6f0]/50 px-3 py-2.5 rounded-2xl border border-[#d6dfce]/45">
+          <div className="flex items-center gap-1.5 font-bold text-[#1e2815]">
+            <Clock className="w-3.5 h-3.5 text-[#516931]" />
+            <span>조회 기준:</span>
+            <strong className="text-[#516931]">
+              {calendarViewMode === 'daily' 
+                ? (() => {
+                    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+                    const formatted = formatDateStr(calendarDate);
+                    return `${formatted} (${dayNames[calendarDate.getDay()]})`;
+                  })()
+                : (() => {
+                    const weeks = getWeekDates(calendarDate);
+                    return `${weeks[0].dateStr} ~ ${weeks[6].dateStr} (주간 통합 일정)`;
+                  })()
+              }
+            </strong>
+          </div>
+          <span className="text-[9.5px] font-bold text-[#7b8f6c]">
+            * 예약 카드 클릭 시 상세 정보 팝업
+          </span>
+        </div>
+
+        {/* Main Calendar Render Stage */}
+        <div className="w-full">
+          {calendarViewMode === 'daily' ? (
+            <div className="flex flex-col gap-3">
+              {/* Daily Timeline Axis Headings */}
+              <div className="hidden sm:flex items-center text-[10px] font-bold text-[#7b8f6c] select-none border-b border-[#d6dfce]/30 pb-1.5 pl-[140px] pr-2">
+                <div className="flex-1 flex justify-between">
+                  <span>08:00</span>
+                  <span>10:00</span>
+                  <span>12:00</span>
+                  <span>14:00</span>
+                  <span>16:00</span>
+                  <span>18:00</span>
+                  <span>20:00</span>
+                </div>
+              </div>
+
+              {/* Vehicle Rows */}
+              <div className="flex flex-col gap-2.5">
+                {vehicles.map((v) => {
+                  const dateStr = formatDateStr(calendarDate);
+                  const vRes = reservations.filter(res => {
+                    if (res.vehicleId !== v.id) return false;
+                    if (res.status === '반려') return false;
+                    
+                    const startD = res.startDate.split(' ')[0];
+                    const endD = res.endDate.split(' ')[0];
+                    return dateStr >= startD && dateStr <= endD;
+                  });
+
+                  // Calculate conflicts specifically for this vehicle on this day
+                  const vConflicts = getOverlapConflicts(vRes);
+                  const hasVConflict = vConflicts.length > 0;
+
+                  return (
+                    <div 
+                      key={v.id} 
+                      className={`flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 rounded-2xl border transition-all ${
+                        hasVConflict 
+                          ? 'bg-rose-50/20 border-rose-250 shadow-xs' 
+                          : 'bg-stone-50/40 border-stone-100 hover:bg-stone-50/80 hover:border-[#d6dfce]/80'
+                      }`}
+                    >
+                      {/* Left Column: Vehicle Plate / Tag */}
+                      <div className="w-[130px] shrink-0 flex flex-col justify-center select-none">
+                        <span className="text-[11px] font-extrabold text-[#1e2815] truncate flex items-center gap-1.5">
+                          <span>{v.id.split(' ')[0] || v.id}</span>
+                          {hasVConflict && (
+                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 bg-rose-600 text-white rounded-full animate-pulse shrink-0">
+                              중복!
+                            </span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[9px] text-[#7b8f6c] truncate max-w-[85px]">{v.model}</span>
+                          <span className="text-[8px] font-extrabold bg-[#516931]/10 text-[#516931] px-1 rounded-sm shrink-0">
+                            {v.institution || '본관'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Right Column: Timeline Box */}
+                      <div className="flex-1 relative h-9 bg-white rounded-xl border border-stone-150 flex items-center overflow-hidden">
+                        {/* Vertical hour division grid lines */}
+                        {Array.from({ length: 11 }).map((_, i) => {
+                          const leftPct = ((i + 1) / 12) * 100;
+                          return (
+                            <div 
+                              key={i} 
+                              className="absolute h-full w-[1px] bg-[#d6dfce]/20 pointer-events-none" 
+                              style={{ left: `${leftPct}%` }} 
+                            />
+                          );
+                        })}
+
+                        {/* Reservation blocks */}
+                        {vRes.length === 0 ? (
+                          <span className="text-[9.5px] text-[#7b8f6c] pl-3 italic select-none">
+                            배차 예약 일정 없음
+                          </span>
+                        ) : (
+                          vRes.map((res) => {
+                            const coords = getTimelineCoords(res, dateStr);
+                            if (!coords) return null;
+
+                            const isOverlap = isHasConflict(res.id, vConflicts);
+
+                            return (
+                              <button
+                                key={res.id}
+                                type="button"
+                                onClick={() => setSelectedCalRes(res)}
+                                style={{
+                                  left: `${coords.left}%`,
+                                  width: `${coords.width}%`,
+                                }}
+                                className={`absolute h-7 rounded-lg text-[9px] font-bold px-2 flex flex-col justify-center transition-all shadow-xs truncate text-left border cursor-pointer hover:scale-[1.015] hover:z-20 ${
+                                  isOverlap
+                                    ? 'bg-gradient-to-r from-rose-50 to-amber-50 hover:from-rose-100 hover:to-amber-100 border-rose-350 text-rose-950 shadow-xs shadow-rose-100'
+                                    : res.status === '대기'
+                                      ? 'bg-orange-50 hover:bg-orange-100 border-orange-250 text-orange-950'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-250 text-emerald-950'
+                                }`}
+                                title={`${res.driverName} (${res.startDate.split(' ')[1]}~${res.endDate.split(' ')[1]}) - ${res.purpose}`}
+                              >
+                                <div className="flex items-center gap-1 truncate font-extrabold text-[9px] leading-tight">
+                                  {isOverlap && <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />}
+                                  <span className="truncate">{res.driverName} ({res.startDate.split(' ')[1]}~${res.endDate.split(' ')[1]})</span>
+                                </div>
+                                <span className="text-[8px] opacity-80 truncate leading-none mt-0.5 font-medium">{res.purpose}</span>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Weekly Layout Grid */
+            <div className="flex flex-col gap-1 sm:gap-0">
+              <div className="flex gap-2.5 overflow-x-auto pb-2.5 sm:grid sm:grid-cols-7 sm:gap-2 sm:overflow-visible">
+                {getWeekDates(calendarDate).map((day) => {
+                  const dayRes = reservations.filter(res => {
+                    if (res.status === '반려') return false;
+                    const startD = res.startDate.split(' ')[0];
+                    const endD = res.endDate.split(' ')[0];
+                    return day.dateStr >= startD && day.dateStr <= endD;
+                  });
+
+                  const dayConflicts = getOverlapConflicts(dayRes);
+                  const isSelectedDay = formatDateStr(calendarDate) === day.dateStr;
+
+                  return (
+                    <div 
+                      key={day.dateStr}
+                      className={`flex-1 min-w-[125px] rounded-2xl border p-2.5 flex flex-col gap-2 transition-all ${
+                        isSelectedDay 
+                          ? 'bg-[#516931]/5 border-[#516931] shadow-xs' 
+                          : 'bg-[#f4f6f0]/30 border-[#d6dfce]/40 hover:bg-[#e9eee2]/45'
+                      }`}
+                    >
+                      {/* Day Label Header */}
+                      <button
+                        type="button"
+                        onClick={() => setCalendarDate(day.dateObj)}
+                        className="flex items-center justify-between text-left cursor-pointer w-full group"
+                      >
+                        <div>
+                          <span className={`text-xs font-extrabold ${isSelectedDay ? 'text-[#516931]' : 'text-stone-900 group-hover:text-[#516931]'}`}>
+                            {day.dateStr.slice(8)}일
+                          </span>
+                          <span className="text-[10px] font-bold text-[#7b8f6c] ml-1">({day.dayName})</span>
+                        </div>
+                        {dayRes.length > 0 && (
+                          <span className={`text-[8.5px] font-extrabold px-1.5 py-0.2 rounded-full font-mono ${
+                            isSelectedDay ? 'bg-[#516931] text-white' : 'bg-[#1e2815]/10 text-[#516931]'
+                          }`}>
+                            {dayRes.length}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Under Line */}
+                      <div className={`h-[1.5px] w-full rounded-full ${isSelectedDay ? 'bg-[#516931]' : 'bg-[#d6dfce]/40'}`} />
+
+                      {/* Reservations List items container */}
+                      <div className="flex flex-col gap-1.5 flex-1 min-h-[160px] justify-start">
+                        {dayRes.length === 0 ? (
+                          <span className="text-[9px] text-[#7b8f6c]/70 py-10 text-center italic">일정 없음</span>
+                        ) : (
+                          dayRes.map((res) => {
+                            const isItemConflict = isHasConflict(res.id, dayConflicts);
+                            
+                            return (
+                              <button
+                                key={res.id}
+                                type="button"
+                                onClick={() => setSelectedCalRes(res)}
+                                className={`w-full text-left p-2 rounded-xl border text-[9px] flex flex-col gap-1 transition hover:shadow-xs hover:border-[#516931]/60 hover:scale-[1.01] cursor-pointer ${
+                                  isItemConflict
+                                    ? 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-950 shadow-xs'
+                                    : res.status === '대기'
+                                      ? 'bg-orange-50 hover:bg-orange-100 border-orange-200 text-orange-950'
+                                      : 'bg-white hover:bg-stone-50 border-stone-200 text-stone-900 shadow-3xs'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between font-extrabold gap-1 leading-none">
+                                  <span className="truncate">{res.driverName}</span>
+                                  <span className={`text-[7.5px] px-1 font-extrabold rounded-full ${
+                                    res.status === '승인' ? 'bg-emerald-100 text-emerald-800' :
+                                    res.status === '대기' ? 'bg-orange-100 text-orange-850' : 'bg-slate-100 text-slate-700'
+                                  }`}>
+                                    {res.status}
+                                  </span>
+                                </div>
+
+                                <div className="text-[7.5px] text-[#516931] font-bold truncate leading-tight mt-0.5">
+                                  {res.vehicleId.split(' ')[0]}
+                                </div>
+
+                                <div className="text-[8px] font-mono font-bold text-stone-500 mt-0.5">
+                                  {res.startDate.split(' ')[1]}~{res.endDate.split(' ')[1]}
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {dayConflicts.length > 0 && (
+                        <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-1 text-[8px] font-extrabold text-center mt-auto flex items-center justify-center gap-0.5 shrink-0 select-none">
+                          <AlertTriangle className="w-2.5 h-2.5 shrink-0 text-rose-600 animate-pulse" />
+                          <span>배차 일정 중복!</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ⚠️ Conflicts Alert Panel (Only visible when conflicts exist on searched day) */}
+        {(() => {
+          const dateStr = formatDateStr(calendarDate);
+          const dayReservations = reservations.filter(res => {
+            if (res.status === '반려') return false;
+            const startD = res.startDate.split(' ')[0];
+            const endD = res.endDate.split(' ')[0];
+            return dateStr >= startD && dateStr <= endD;
+          });
+          const dayConflicts = getOverlapConflicts(dayReservations);
+
+          if (dayConflicts.length === 0) return null;
+
+          return (
+            <div className="bg-rose-50 border border-rose-250 rounded-2xl p-3 text-xs text-rose-950 flex flex-col gap-1.5 animate-fadeIn">
+              <div className="flex items-center gap-1.5 font-bold text-rose-800 select-none">
+                <AlertCircle className="w-4 h-4 text-rose-600 animate-pulse" />
+                <span>⚠️ 배차 예약 일정 중복 안내 ({dayConflicts.length}건 감지)</span>
+              </div>
+              <div className="flex flex-col gap-1 pl-5">
+                {dayConflicts.map((c, idx) => (
+                  <div key={idx} className="font-semibold leading-relaxed text-[11px]">
+                    <span className="text-[#516931] font-extrabold">[{c.res1.vehicleId}]</span> 차량:{' '}
+                    <strong className="text-stone-900 font-bold">{c.res1.driverName}님</strong>
+                    <span className="text-stone-500 font-mono text-[9.5px] ml-1">({c.res1.startDate.split(' ')[1]}~{c.res1.endDate.split(' ')[1]})</span>
+                    <span className="text-stone-400 font-normal mx-1 font-mono">↔</span>
+                    <strong className="text-stone-900 font-bold">{c.res2.driverName}님</strong>
+                    <span className="text-stone-500 font-mono text-[9.5px] ml-1">({c.res2.startDate.split(' ')[1]}~{c.res2.endDate.split(' ')[1]})</span>
+                    <span className="text-[#bf3b3b] font-bold ml-1.5">교차 중복</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-rose-700 font-bold pl-5 mt-0.5 select-none hover:underline cursor-pointer" onClick={() => onNavigate('reservations')}>
+                * 관리자께서는 신속히 일정을 승인/반려 조치하거나 예약 담당자와 이용 차량을 조정해주시기 바랍니다. (누르면 예약 관리 탭으로 이동)
+              </p>
+            </div>
+          );
+        })()}
+
+      </div>
+
+      {/* 팝업 모달: 배차 예약 세부 정보 */}
+      {selectedCalRes && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 overflow-y-auto p-4 flex items-center justify-center animate-fadeIn no-print">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border border-[#d6dfce]/85 p-5 flex flex-col gap-4">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#d6dfce]/35 pb-2.5">
+              <div className="flex items-center gap-2 text-[#516931]">
+                <Clock className="w-4 h-4" />
+                <h3 className="font-bold text-xs text-[#1e2815]">배차 상세 예약 안내</h3>
+              </div>
+              <button
+                onClick={() => setSelectedCalRes(null)}
+                className="text-stone-400 hover:text-stone-600 font-bold text-lg p-1 transition cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex flex-col gap-2.5 text-[11px]">
+              <div className="flex justify-between border-b border-stone-50 pb-2">
+                <span className="text-stone-550 font-bold">신청 차량</span>
+                <span className="font-extrabold text-[#1e2815]">{selectedCalRes.vehicleId}</span>
+              </div>
+              <div className="flex justify-between border-b border-stone-50 pb-2">
+                <span className="text-stone-550 font-bold">운전 사원</span>
+                <span className="font-bold text-stone-900">{selectedCalRes.driverName}님</span>
+              </div>
+              <div className="flex justify-between border-b border-stone-50 pb-2">
+                <span className="text-stone-550 font-bold">예약 기간</span>
+                <span className="font-extrabold text-stone-850">{selectedCalRes.startDate} ~ {selectedCalRes.endDate.split(' ').slice(1).join(' ') || selectedCalRes.endDate}</span>
+              </div>
+              <div className="flex flex-col gap-1 border-b border-stone-50 pb-2 text-[11px]">
+                <span className="text-stone-550 font-bold">목적/행선지</span>
+                <div className="bg-[#f4f6f0] p-2 rounded-xl text-stone-900 font-bold leading-relaxed text-[10px]">
+                  <div>🎯 목적: {selectedCalRes.purpose}</div>
+                  <div className="mt-1">📍 목적지: {selectedCalRes.destination}</div>
+                </div>
+              </div>
+              <div className="flex justify-between border-b border-stone-50 pb-2">
+                <span className="text-stone-550 font-bold">탑승 인원</span>
+                <span className="text-stone-700 font-extrabold">{selectedCalRes.passengers || '미기재'}</span>
+              </div>
+              <div className="flex justify-between border-b border-stone-50 pb-2">
+                <span className="text-stone-550 font-bold">승인구분</span>
+                <span className={`px-2 py-0.5 rounded-full font-extrabold text-[9px] ${
+                  selectedCalRes.status === '승인' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                  selectedCalRes.status === '대기' ? 'bg-orange-100 text-orange-850 border border-orange-200' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {selectedCalRes.status}
+                </span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-2 justify-end mt-1 pt-2.5 border-t border-stone-100">
+              <button
+                onClick={() => setSelectedCalRes(null)}
+                className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-bold text-xs cursor-pointer transition"
+              >
+                닫기
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedCalRes(null);
+                  onNavigate('reservations');
+                }}
+                className="px-3.5 py-1.5 bg-[#516931] hover:bg-[#3d5025] text-white rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition shadow-xs"
+              >
+                <span>일정 승인/조정하기</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 월별 정비 비용 추이 시각화 차트 */}
       <div className="bg-white border border-[#d6dfce]/85 shadow-sm p-4 rounded-3xl flex flex-col gap-3">
