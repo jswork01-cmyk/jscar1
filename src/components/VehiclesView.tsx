@@ -294,7 +294,7 @@ export default function VehiclesView({
       <div className="flex flex-col gap-4">
         {filteredVehicles.map(v => {
           const { progress, remains, color, text } = getOilStatus(v);
-          const isInsExpired = new Date(v.insuranceDate).getTime() <= new Date('2026-05-20').getTime();
+          const isInsExpired = new Date(v.insuranceDate).getTime() <= new Date().getTime();
 
           return (
             <div 

@@ -43,7 +43,7 @@ export default function DashboardView({
   
   // States for interactive Scheduler / Calendar
   const [calendarViewMode, setCalendarViewMode] = useState<'daily' | 'weekly'>('daily');
-  const [calendarDate, setCalendarDate] = useState<Date>(new Date('2026-05-20'));
+  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
   const [selectedCalRes, setSelectedCalRes] = useState<Reservation | null>(null);
 
   const formatDateStr = (date: Date): string => {
@@ -150,7 +150,7 @@ export default function DashboardView({
   };
 
   // Calculate alerts based on mock/live date
-  const todayDate = new Date('2026-05-20');
+  const todayDate = new Date();
 
   const getDaysRemainingStr = (dateStr: string) => {
     if (!dateStr) return null;
@@ -227,11 +227,12 @@ export default function DashboardView({
   
   // Today's active reservations
   const todayReservations = reservations.filter(r => {
-    return r.startDate.startsWith('2026-05-20') || r.startDate.includes('25') || r.startDate.includes('26');
+    const todayS = formatDateStr(todayDate);
+    return r.startDate.startsWith(todayS) || (r.startDate <= todayS && r.endDate >= todayS);
   });
 
-  // 3. 월별 정비 비용 추이 및 기관별 데이터 가공 (2026년 기준)
-  const currentYear = 2026;
+  // 3. 월별 정비 비용 추이 및 기관별 데이터 가공
+  const currentYear = new Date().getFullYear();
   const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 
   // Map vehicle id to designated institution
@@ -541,11 +542,11 @@ export default function DashboardView({
               
               <button
                 type="button"
-                onClick={() => setCalendarDate(new Date('2026-05-20'))}
-                className="text-[9.5px] font-extrabold px-1.5 py-1 text-[#516931] hover:bg-[#e9eee2] rounded-lg transition cursor-pointer"
-                title="데이터 기준일인 2026년 5월 20일로 이동합니다."
+                onClick={() => setCalendarDate(new Date())}
+                className="text-[9.5px] font-extrabold px-2.5 py-1 text-[#516931] hover:bg-[#e9eee2] rounded-lg transition cursor-pointer font-sans"
+                title="오늘 날짜로 신속히 이동합니다."
               >
-                기준일(5/20)
+                오늘
               </button>
 
               <button

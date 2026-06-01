@@ -261,7 +261,7 @@ export default function App() {
 
     if (Notification.permission !== 'granted') return;
 
-    const todayDate = new Date('2026-05-20');
+    const todayDate = new Date();
 
     vehicles.forEach(v => {
       // 1. Insurance Alert (remains expiring in 30 days or less)

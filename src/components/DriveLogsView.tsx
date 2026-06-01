@@ -41,10 +41,18 @@ export default function DriveLogsView({
   onClearPresets,
   onAddDriveLog
 }: DriveLogsViewProps) {
+  const getTodayDateStr = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const [isRecording, setIsRecording] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [driverName, setDriverName] = useState('');
-  const [driveDate, setDriveDate] = useState('2026-05-20');
+  const [driveDate, setDriveDate] = useState(getTodayDateStr());
   const [startTime, setStartTime] = useState(getCurrentTimeHM());
   const [endTime, setEndTime] = useState(getCurrentTimeHM());
   const [purpose, setPurpose] = useState('서비스지원');
@@ -95,10 +103,10 @@ export default function DriveLogsView({
       // Parse startDate "YYYY-MM-DD HH:MM"
       if (res.startDate && res.startDate.includes(' ')) {
         const parts = res.startDate.split(' ');
-        setDriveDate(parts[0] || '2026-05-20');
+        setDriveDate(parts[0] || getTodayDateStr());
         setStartTime(parts[1] || '09:00');
       } else {
-        setDriveDate(res.startDate || '2026-05-20');
+        setDriveDate(res.startDate || getTodayDateStr());
         setStartTime('09:00');
       }
 

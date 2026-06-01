@@ -23,7 +23,13 @@ export default function RepairsView({
 }: RepairsViewProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
-  const [repairDate, setRepairDate] = useState('2026-05-20');
+  const [repairDate, setRepairDate] = useState(() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  });
   const [description, setDescription] = useState('');
   const [cost, setCost] = useState(0);
   const [mileage, setMileage] = useState(0);
